@@ -1,4 +1,28 @@
 unit SBD.ServiceProvider.Internal;
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+//
+//  COPYRIGHT NOTICE
+//  ================
+//  copyright (c) Sean B. Durkin, 2014
+//  The copyright holder and author, is and was Sean B. Durkin of Sydney,
+//   Australia.
+//
+//
+//  STATEMENT OF COPYING PERMISSION
+//  ===============================
+//  You are hereby granted permission to copy this unit under the conditions of
+//  the Mozilla Public License, v. 2.0 (MPL 2.0). The MPL 2.0 license can be
+//  found in the file named "MPL2.0_LicenseTerms.txt" distributed along with
+//  this library.
+//
+//  This Source Code Form is subject to the terms of the Mozilla Public
+//  License, v. 2.0. If a copy of the MPL was not distributed with this
+//  file, You can obtain one at http://mozilla.org/MPL/2.0/.
+//
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+
 interface
 uses SBD.ServiceProvider, Classes, Generics.Collections, Rtti;
 
