@@ -49,9 +49,8 @@ end;
 
 
 
-{ TPerson }
 
-constructor TPerson.CreatePerson(const Config: string);
+constructor TPerson.CreatePerson( const Config: string);
 begin
 FName := Config
 end;

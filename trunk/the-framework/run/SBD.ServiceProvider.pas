@@ -28,6 +28,7 @@ uses Classes, Generics.Collections;
 
 const
   sClientRef = 'client'; // Use: decorate an IInterface data member/property with [Injection('client')]
+  SBD_DependencyInjectionFramework_Version = 2;
 
 type
 IServiceProvider = interface;
@@ -57,8 +58,8 @@ TGenericServiceProvider = class
     procedure   ShutDown;
   end;
 
-TCooperativeCollectionFactory = function( const Config: string): IInterface;
-TAddToCollectionProc = procedure( const Collection, Addend: IInterface);
+TCooperativeCollectionFactory = reference to function( const Config: string): IInterface;
+TAddToCollectionProc = reference to procedure( const Collection, Addend: IInterface);
 
 IServiceProvider = interface
   ['{4E38BEF6-2768-46E3-8740-25B8C526C912}']
