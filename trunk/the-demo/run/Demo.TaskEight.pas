@@ -154,7 +154,7 @@ function TChris.Weight: double;
 begin
 result := 102.0
 end;
-{ RPersonCursor }
+
 
 function RPersonCursor.GetCurrent: IPerson;
 begin
