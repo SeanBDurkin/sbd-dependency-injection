@@ -116,6 +116,11 @@ TServiceProvider = class( TInterfacedObject, IServiceProvider, IServiceProviderI
     procedure Merge( const Source: IServiceProvider);
     procedure ShutDown;
 
+  strict private
+    function  AcquireOneService(  const Client: IInterface; const SecondaryProvider: IServiceProvider;
+                                  const Config: string; const Svc: TGUID;
+                                  out Intf1; const Value1: RService; var isInception: boolean): boolean;
+
   private // IServiceProviderInternal
     function Internal_Acquire( const Svc: TGUID; const Client: IInterface;
       out Intf; const Config: string;
@@ -178,6 +183,7 @@ implementation
 uses SysUtils, TypInfo, Generics.Defaults;
 
 type
+TSBDUnit_BaseAttributeClass = class of TSBDUnit_BaseAttribute;
 TSuiteInjector = class;
 IInjectableMember = interface
   ['{EB594A82-EAAE-4555-BAA0-33F86E6B5D8D}']
@@ -224,6 +230,8 @@ TSuiteInjector = class( TInterfacedObject, ISuiteInjector)
     function  GetMembers: TEnumerable<IInjectableMember>;   virtual; abstract;
   end;
 TSuiteInjectorClass = class of TSuiteInjector;
+TSuitesArray = array[0..1] of TSuiteInjectorClass;
+
 
 TDataMemberInjector = class( TSuiteInjector)
   protected
@@ -545,7 +553,85 @@ begin
 result := Internal_Acquire( ServiceIID, Client, Intf, Config, InjectionOverride, True)
 end;
 
-function TServiceProvider.Internal_Acquire(const Svc: TGUID;
+
+function TServiceProvider.AcquireOneService(
+    const Client: IInterface; const SecondaryProvider: IServiceProvider;
+    const Config: string; const Svc: TGUID;
+    out Intf1; const Value1: RService; var isInception: boolean): boolean;
+var
+  Obj: TObject;
+  IntfResult: IInterface;
+
+  procedure CreateFromFlyweight;
+  const
+    Suites: TSuitesArray = (TDataMemberInjector, TWritablePropertyInjector);
+  var
+    Cls: TClass;
+    ServiceType: TRttiType;
+    SuiteCls: TSuiteInjectorClass;
+    Hold: IInterface;
+    Injector: ISuiteInjector;
+    A: TArray<TRttiParameter>;  // Work-around bug in D2010-with-packages
+  begin
+  Cls := Value1.FFlyweightCreateBase;
+  if assigned( Cls) then
+      begin
+      Obj  := Cls.NewInstance;
+      Supports( Obj, IInterface, Hold);
+      // ^-- Needed for reference counted objects which do not use
+      //  the BeforeConstruction property to set the reference count
+      //  to one.
+      ServiceType := FRtti.GetType( Cls);
+      for SuiteCls in Suites do
+        begin
+        Injector := nil;
+        Injector := SuiteCls.Create( Obj, ServiceType, Client, SecondaryProvider) as ISuiteInjector;
+        Injector.Inject( self)
+        end;
+      end
+    else
+      Obj := nil;
+  if not assigned( Value1.FConstructor) then
+    raise Exception.Create( 'Internal error - AcquireOneService');
+  A := Value1.FConstructor.GetParameters;
+  if Length( A) = 0 then
+      Value1.FConstructor.Invoke( Obj, [])
+    else
+      Value1.FConstructor.Invoke( Obj, [Config]);
+  Obj.AfterConstruction;
+  result := Supports( Obj, Svc, IntfResult);
+  if result then
+      IInterface( Intf1) := IntfResult
+    else
+      FreeAndNil( Obj);
+  isInception := result
+  end;
+
+begin
+isInception := False;
+IInterface( Intf1) := Value1.FLiveService;
+result := assigned( IInterface( Intf1));
+if result then exit;
+Obj := nil;
+try
+  if not assigned( Value1.FFlyweightFactory) then
+     CreateFromFlyweight
+  else
+      begin
+      IntfResult := Value1.FFlyweightFactory( Config, self);
+      result := Supports( IntfResult, Svc, Intf1);
+      isInception := result
+      end
+  except
+    begin
+    Obj.Free;
+    raise
+    end
+  end
+end;
+
+
+function TServiceProvider.Internal_Acquire( const Svc: TGUID;
   const Client: IInterface; out Intf; const Config: string;
   const SecondaryProvider: IServiceProvider;
   SecondaryIsOverride: boolean): boolean;
@@ -560,68 +646,6 @@ var
   GangMember: IInterface;
   isNewbie: boolean;
   Idx: integer;
-
-  function AcquireOneService( out Intf1; const Value1: RService; var isInception: boolean): boolean;
-  var
-    Cls: TClass;
-    Obj: TObject;
-    ServiceType: TRttiType;
-    SuiteCls: TSuiteInjectorClass;
-    Hold: IInterface;
-    IntfResult: IInterface;
-  begin
-  isInception := False;
-  IInterface( Intf1) := Value1.FLiveService;
-  result := assigned( IInterface( Intf1));
-  if result then exit;
-  Obj := nil;
-  try
-    if not assigned( Value1.FFlyweightFactory) then
-      begin
-      Cls := Value1.FFlyweightCreateBase;
-      if assigned( Cls) then
-          begin
-          Obj  := Cls.NewInstance;
-          Supports( Obj, IInterface, Hold);
-          // ^-- Needed for reference counted objects which do not use
-          //  the BeforeConstruction property to set the reference count
-          //  to one.
-          ServiceType := FRtti.GetType( Cls);
-          for SuiteCls in Suites do
-            (SuiteCls.Create( Obj, ServiceType, Client, SecondaryProvider) as ISuiteInjector)
-              .Inject( self)
-          end
-        else
-          Obj := nil;
-      if not assigned( Value1.FConstructor) then
-        raise Exception.Create( 'Internal error - AcquireOneService');
-      if Length( Value1.FConstructor.GetParameters) = 0 then
-          Value1.FConstructor.Invoke( Obj, [])
-        else
-          Value1.FConstructor.Invoke( Obj, [Config]);
-      Obj.AfterConstruction;
-      result := Supports( Obj, Svc, IntfResult);
-      if result then
-          IInterface( Intf1) := IntfResult
-        else
-          Obj.Free;
-      isInception := result;
-      Hold   := nil
-      end
-    else
-      begin
-      IntfResult := Value1.FFlyweightFactory( Config, self);
-      result := Supports( IntfResult, Svc);
-      if result then
-        IInterface( Intf1) := IntfResult;
-      isInception := result
-      end;
-  except
-    begin
-    Obj.Free;
-    raise
-    end
-  end end;
 
 begin
 Key.FServiceIID := Svc;
@@ -640,7 +664,7 @@ case Group.FAffinity of
     for Idx := 0 to Group.FMembers.Count - 1 do
       begin
       Value := Group.FMembers[ Idx];
-      if AcquireOneService( GangMember, Value, isNewbie) then
+      if AcquireOneService( Client, SecondaryProvider, Config, Svc, GangMember, Value, isNewbie) then
         begin
         if assigned( Group.FAddToCollection) then
             Group.FAddToCollection( Gang, GangMember)
@@ -658,7 +682,7 @@ case Group.FAffinity of
     Idx := Group.FActiveIndex;
     result := (Idx >= 0) and (Idx < Group.FMembers.Count);
     if not result then exit;
-    result := AcquireOneService( Intf, Group.FMembers[Idx], isNewbie);
+    result := AcquireOneService( Client, SecondaryProvider, Config, Svc, Intf, Group.FMembers[Idx], isNewbie);
     if isNewbie and Group.FisPooled then
       Group.FMembers.SetLiveService( Idx, IInterface( Intf))
     end
@@ -1188,8 +1212,6 @@ FMembers.Free;
 inherited
 end;
 
-type TSBDUnit_BaseAttributeClass = class of TSBDUnit_BaseAttribute;
-
 procedure TSuiteInjector.Inject( const Provider: IServiceProvider);
 var
   Member: IInjectableMember;
@@ -1398,9 +1420,12 @@ end;
 
 
 constructor TPropEnumerable.Create( Suite1: TSuiteInjector);
+var
+  A: TArray<TRttiProperty>;  // Work-around D1020-with-delphi bug
 begin
 inherited Create( Suite1);
-FMembers := FSuite.FServiceType.GetProperties
+A        := FSuite.FServiceType.GetProperties;
+FMembers := A
 end;
 
 function TPropEnumerable.DoGetEnumerator: TEnumerator<IInjectableMember>;
@@ -1410,9 +1435,12 @@ end;
 
 
 constructor TFieldEnumerable.Create( Suite1: TSuiteInjector);
+var
+  A: TArray<TRttiField>; // Needed to work-around D2010-with-packages bug.
 begin
 inherited Create( Suite1);
-FMembers := FSuite.FServiceType.GetFields
+A        := FSuite.FServiceType.GetFields;
+FMembers := A
 end;
 
 function TFieldEnumerable.DoGetEnumerator: TEnumerator<IInjectableMember>;
