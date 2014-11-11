@@ -1493,6 +1493,14 @@ result := IsEqualGUID( Left.FServiceIID, Right.FServiceIID) and
           (Left.FConfig = Right.FConfig)
 end;
 
+
+{$IF CompilerVersion < 24}
+function Low( const s: string): integer; inline;
+begin
+result := 1;
+end;
+{$IFEND}
+
 function TServiceEqualityComparer.Key_GetHashCode(
   const Value: RServiceKey): integer;
 var
@@ -1501,7 +1509,7 @@ begin
 result := BobJenkinsHash( Value.FServiceIID, SizeOf( Value.FServiceIID), 0);
 L := Length( Value.FConfig);
 if L > 0 then
-  result := BobJenkinsHash( Value.FConfig[1], L * SizeOf( Value.FConfig[1]), result)
+  result := BobJenkinsHash( Value.FConfig[ Low( Value.FConfig)], L * SizeOf( Char), result)
 end;
 
 end.
