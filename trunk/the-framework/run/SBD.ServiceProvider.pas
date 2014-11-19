@@ -28,7 +28,7 @@ uses Classes, Generics.Collections;
 
 const
   sClientRef = 'client'; // Use: decorate an IInterface data member/property with [Injection('client')]
-  SBD_DependencyInjectionFramework_Version = 3;
+  SBD_DependencyInjectionFramework_Version = 4;
 
 type
 IServiceProvider = interface;

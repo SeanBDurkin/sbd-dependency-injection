@@ -1302,20 +1302,17 @@ for Member in GetMembers do
         SelectedProvider := Provider1;
         break
         end;
-      if AvailableCount > 0 then
-        begin
-        if IsEqualGUID( InjectableGUID, IInterface) and
-           (sInjectionConfig = sClientRef) then
-            begin
-            Inject   := FClient;
-            doInject := Assigned( Inject)
-            end
-          else
-            begin
-            doInject := (SelectedProvider as IServiceProviderInternal).Internal_Acquire(
-              InjectableGUID, FInjectionsClient, Inject, sInjectionConfig, nil, False) // TODO
-            end
-        end
+      if AvailableCount = 0 then
+          begin
+          doInject := IsEqualGUID( InjectableGUID, IInterface) and
+                      (sInjectionConfig = sClientRef) and
+                      assigned( FClient);
+          if doInject then
+            Inject := FClient
+          end
+        else
+          doInject := (SelectedProvider as IServiceProviderInternal).Internal_Acquire(
+            InjectableGUID, FInjectionsClient, Inject, sInjectionConfig, nil, False)
     finally
       Providers.Free
       end;
